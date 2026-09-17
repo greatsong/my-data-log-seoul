@@ -1,0 +1,45 @@
+name: KOBIS 일별 박스오피스 이어 붙이기
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 22 * * *"      # UTC 22:30 = 한국 시간 아침 7시 30분
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kobis-daily
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v7
+
+      - name: 파이썬 준비
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: 도구 설치
+        run: pip install -r requirements-collect.txt
+
+      - name: 빠진 날짜 받기
+        env:
+          KOBIS_KEY: ${{ secrets.KOBIS_KEY }}
+        run: python kobis_collect.py
+
+      - name: 새 기록이 있을 때만 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain -- data/kobis_daily_log.csv)" ]; then
+            echo "새로 추가된 기록이 없어 커밋하지 않습니다."
+          else
+            git add data/kobis_daily_log.csv
+            git commit -m "KOBIS 일별 박스오피스 이어 붙이기"
+            git push
+          fi
