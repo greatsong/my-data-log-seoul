@@ -1,0 +1,59 @@
+name: 서울 혼잡도 수집
+
+on:
+  workflow_dispatch:
+    inputs:
+      collect_all:
+        description: "121곳 전체를 수집하려면 1, 강남역만 수집하려면 0"
+        required: false
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-congestion
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v7
+
+      - name: 파이썬 준비
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: 도구 설치
+        run: pip install -r requirements-collect.txt
+
+      - name: 수집 실행
+        env:
+          SEOUL_KEY: ${{ secrets.SEOUL_KEY }}
+          COLLECT_ALL: ${{ github.event.inputs.collect_all || '1' }}
+        run: python collect.py
+
+      - name: 결과 파일 확인
+        run: |
+          if [ ! -f data/seoul_congestion_log.csv ]; then
+            echo "data/seoul_congestion_log.csv가 만들어지지 않았습니다. 위 수집 단계의 로그를 확인하세요."
+            exit 1
+          fi
+          wc -l data/seoul_congestion_log.csv
+
+      - name: 새 기록이 있을 때만 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # git diff만 쓰면 첫 실행에서 새로 만들어진(아직 추적되지 않은) CSV를 '변경 없음'으로 보아
+          # 커밋하지 않는다. 그래서 git status로 새 파일까지 함께 확인한다.
+          if [ -z "$(git status --porcelain -- data/seoul_congestion_log.csv)" ]; then
+            echo "새로 추가된 기록이 없어 커밋하지 않습니다."
+          else
+            git add data/seoul_congestion_log.csv
+            git commit -m "서울 혼잡도 수집"
+            git push
+          fi
