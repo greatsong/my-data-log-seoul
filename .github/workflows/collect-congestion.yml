@@ -7,6 +7,8 @@ on:
         description: "121곳 전체를 수집하려면 1, 강남역만 수집하려면 0"
         required: false
         default: "0"
+  schedule:
+    - cron: "5 * * * *"      # UTC 기준 매시간 5분
 
 permissions:
   contents: write
